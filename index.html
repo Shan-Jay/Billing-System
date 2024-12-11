@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Mrs.Cheezy Billing & Stock Management System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-image: url("1234.jpg");
+            background-color: #ebd40a;
+        }
+        .container {
+            background-color: rgb(126, 108, 7);
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+        }
+        input, select, button {
+            margin: 5px;
+            padding: 8px;
+            width: 100%;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px;
+            cursor: pointer;
+            background-color: #f1f1f1;
+            border: 1px solid #ddd;
+        }
+        .tab.active {
+            background-color: #ddd;
+        }
+        .section {
+            display: none;
+        }
+        .section.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('stock')">Stock Management</div>
+            <div class="tab" onclick="switchTab('billing')">Billing</div>
+        </div>
+
+        <div id="stock" class="section active">
+            <h2>Stock Management</h2>
+            <form id="stockForm">
+                <input type="text" id="productName" placeholder="Product Name" required>
+                <input type="number" id="quantity" placeholder="Quantity" required>
+                <input type="number" id="price" placeholder="Price per Unit" required>
+                <button type="submit">Add Product</button>
+            </form>
+
+            <table id="stockTable">
+                <thead>
+                    <tr>
+                        <th>Product Name</th>
+                        <th>Quantity</th>
+                        <th>Price</th>
+                        <th>Total Value</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="stockBody"></tbody>
+            </table>
+            <button onclick="clearAllStock()">Clear All Stock</button>
+        </div>
+
+        <div id="billing" class="section">
+            <h2>Billing</h2>
+            <form id="billingForm">
+                <select id="productSelect" required></select>
+                <input type="number" id="billQuantity" placeholder="Quantity" required>
+                <button type="submit">Add to Bill</button>
+            </form>
+
+            <table id="billTable">
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>Quantity</th>
+                        <th>Price</th>
+                        <th>Total</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="billBody"></tbody>
+            </table>
+
+            <div id="billSummary">
+                <p>Total Bill: LKR<span id="totalBill">0</span></p>
+                <button onclick="generateBill()">Generate Bill</button>
+                <button onclick="clearAllBills()">Clear All Bills</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Load stock items from localStorage
+        let stockItems = JSON.parse(localStorage.getItem('stockItems')) || [];
+        let billItems = JSON.parse(localStorage.getItem('billItems')) || [];
+
+        // Function to save stock items to localStorage
+        function saveStockItems() {
+            localStorage.setItem('stockItems', JSON.stringify(stockItems));
+        }
+
+        // Function to save bill items to localStorage
+        function saveBillItems() {
+            localStorage.setItem('billItems', JSON.stringify(billItems));
+        }
+
+        // Function to clear all stock from localStorage
+        function clearAllStock() {
+            if(confirm('Are you sure you want to clear all stock? This cannot be undone.')) {
+                stockItems = [];
+                saveStockItems();
+                updateStockTable();
+                updateProductSelect();
+            }
+        }
+
+        // Function to clear all bills from localStorage
+        function clearAllBills() {
+            if(confirm('Are you sure you want to clear all bills? This cannot be undone.')) {
+                billItems = [];
+                saveBillItems();
+                updateBillTable();
+                calculateTotal();
+            }
+        }
+
+        // Call these functions on page load to initialize tables
+        document.addEventListener('DOMContentLoaded', () => {
+            updateStockTable();
+            updateProductSelect();
+            updateBillTable();
+            calculateTotal();
+        });
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.section').forEach(section => section.classList.remove('active'));
+            
+            document.querySelector(`.tab[onclick="switchTab('${tabName}')"]`).classList.add('active');
+            document.getElementById(tabName).classList.add('active');
+        }
+
+        document.getElementById('stockForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const productName = document.getElementById('productName').value;
+            const quantity = parseInt(document.getElementById('quantity').value);
+            const price = parseFloat(document.getElementById('price').value);
+
+            const product = { id: Date.now(), name: productName, quantity, price };
+            stockItems.push(product);
+            saveStockItems(); // Save to localStorage
+            updateStockTable();
+            updateProductSelect();
+            e.target.reset();
+        });
+
+        function updateStockTable() {
+            const stockBody = document.getElementById('stockBody');
+            stockBody.innerHTML = '';
+            stockItems.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${item.name}</td>
+                    <td>${item.quantity}</td>
+                    <td>$${item.price.toFixed(2)}</td>
+                    <td>$${(item.quantity * item.price).toFixed(2)}</td>
+                    <td>
+                        <button onclick="deleteProduct(${item.id})">Delete</button>
+                    </td>
+                `;
+                stockBody.appendChild(row);
+            });
+        }
+
+        function deleteProduct(id) {
+            stockItems = stockItems.filter(item => item.id !== id);
+            saveStockItems(); // Save to localStorage
+            updateStockTable();
+            updateProductSelect();
+        }
+
+        function updateProductSelect() {
+            const productSelect = document.getElementById('productSelect');
+            productSelect.innerHTML = '<option value="">Select Product</option>';
+            stockItems.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.id;
+                option.textContent = `${item.name} (${item.quantity} available)`;
+                productSelect.appendChild(option);
+            });
+        }
+
+        document.getElementById('billingForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const productId = document.getElementById('productSelect').value;
+            const billQuantity = parseInt(document.getElementById('billQuantity').value);
+
+            const product = stockItems.find(item => item.id === parseInt(productId));
+            
+            if (!product || billQuantity > product.quantity) {
+                alert('Invalid quantity or product not available');
+                return;
+            }
+
+            const billItem = { 
+                id: Date.now(), 
+                name: product.name, 
+                quantity: billQuantity, 
+                price: product.price 
+            };
+            
+            billItems.push(billItem);
+            saveBillItems(); // Save to localStorage
+            
+            // Reduce stock
+            product.quantity -= billQuantity;
+            saveStockItems(); // Save updated stock
+            
+            updateBillTable();
+            updateStockTable();
+            updateProductSelect();
+            calculateTotal();
+            e.target.reset();
+        });
+
+        function updateBillTable() {
+            const billBody = document.getElementById('billBody');
+            billBody.innerHTML = '';
+            billItems.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${item.name}</td>
+                    <td>${item.quantity}</td>
+                    <td>$${item.price.toFixed(2)}</td>
+                    <td>$${(item.quantity * item.price).toFixed(2)}</td>
+                    <td>
+                        <button onclick="removeBillItem(${item.id})">Remove</button>
+                    </td>
+                `;
+                billBody.appendChild(row);
+            });
+            saveBillItems(); // Save to localStorage
+        }
+
+        function removeBillItem(id) {
+            const billItem = billItems.find(item => item.id === id);
+            const stockProduct = stockItems.find(item => item.name === billItem.name);
+            
+            // Return quantity to stock
+            stockProduct.quantity += billItem.quantity;
+            saveStockItems(); // Save updated stock
+            
+            billItems = billItems.filter(item => item.id !== id);
+            saveBillItems(); // Save to localStorage
+            updateBillTable();
+            updateStockTable();
+            updateProductSelect();
+            calculateTotal();
+        }
+
+        function calculateTotal() {
+            const totalBill = billItems.reduce((total, item) => total + (item.quantity * item.price), 0);
+            document.getElementById('totalBill').textContent = totalBill.toFixed(2);
+            saveBillItems(); // Ensure total is saved
+        }
+
+        function generateBill() {
+            if (billItems.length === 0) {
+                alert('No items in the bill');
+                return;
+            }
+
+            const billDetails = billItems.map(item => 
+                `${item.name}: ${item.quantity} x $${item.price.toFixed(2)} = $${(item.quantity * item.price).toFixed(2)}`
+            ).join('\n');
+
+            const totalBill = document.getElementById('totalBill').textContent;
+            
+            const bill = `
+BILLING INVOICE
+--------------
+${billDetails}
+--------------
+Total: $${totalBill}
+
+Date: ${new Date().toLocaleString()}
+            `;
+
+            alert(bill);
+            
+            // Reset bill
+            billItems = [];
+            saveBillItems(); // Clear bill from localStorage
+            updateBillTable();
+            calculateTotal();
+        }
+    </script>
+</body>
+</html>
